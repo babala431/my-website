@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Pixel Art Maker</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #1e1e24; color: #fff; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        h1 { margin-bottom: 20px; color: #8CE63A; }
+        
+        .main-container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1200px; }
+        
+        /* Palet Alanı */
+        .palette-card { background: #2b2b36; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .palette-title { margin-top: 0; font-size: 16px; margin-bottom: 10px; }
+        .palette { display: grid; grid-template-columns: repeat(4, 40px); gap: 8px; }
+        .color-box { 
+            width: 40px; height: 40px; border-radius: 6px; cursor: grab; 
+            border: 2px solid rgba(255,255,255,0.2); transition: transform 0.1s;
+        }
+        .color-box:hover { transform: scale(1.1); }
+        .color-box.selected { border: 3px solid #fff; box-shadow: 0 0 10px #fff; }
+
+        /* Kontrol Paneli */
+        .controls { background: #2b2b36; padding: 20px; border-radius: 12px; display: flex; flex-direction: column; gap: 15px; min-width: 200px; }
+        label { font-size: 14px; font-weight: bold; }
+        select, button { padding: 10px; border-radius: 6px; border: none; background: #3f3f50; color: #fff; cursor: pointer; font-size: 14px; }
+        select:hover, button:hover { background: #505066; }
+        button.export-btn { background: #00CD00; color: #000; font-weight: bold; }
+        button.export-btn:hover { background: #8CE63A; }
+
+        /* Tuval (Canvas) Alanı */
+        .canvas-card { background: #2b2b36; padding: 20px; border-radius: 12px; display: flex; justify-content: center; align-items: center; overflow: auto; }
+        #pixel-canvas { 
+            display: grid; background-color: #ffffff; border: 2px solid #4C4C4C; 
+            user-select: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        .pixel { border: 1px solid rgba(0, 0, 0, 0.05); cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h1>GitHub Pixel Art Editor</h1>
+
+    <div class="main-container">
+        <!-- Sol: Renk Paleti -->
+        <div class="palette-card">
+            <h3 class="palette-title">Özel Palet</h3>
+            <div class="palette" id="palette"></div>
+        </div>
+
+        <!-- Orta: Kalite & Ayarlar -->
+        <div class="controls">
+            <div>
+                <label for="quality">Tuval Kalitesi (Piksel Sayısı):</label>
+                <select id="quality" style="width: 100%; margin-top: 5px;">
+                    <option value="16">Çok Düşük (16x16)</option>
+                    <option value="32" selected>Düşük / Standard (32x32)</option>
+                    <option value="64">Yüksek Kalite (64x64)</option>
+                    <option value="128">Aşırı Yüksek (128x128)</option>
+                </select>
+            </div>
+            
+            <button id="clear-btn">Temizle</button>
+            <button id="export-btn" class="export-btn">PNG Olarak İndir</button>
+        </div>
+
+        <!-- Sağ: Çizim Alanı -->
+        <div class="canvas-card">
+            <div id="pixel-canvas"></div>
+        </div>
+    </div>
+
+    <script>
+        // Verdiğin Renk Kodları
+        const colorCodes = [
+            "#FFFFFF", "#593D29", "#E3E4E5", "#F7E1B5",
+            "#CCCCCC", "#FFFF80", "#7F7F7F", "#E5D900",
+            "#4C4C4C", "#8CE63A", "#000000", "#00CD00",
+            "#FFA0A0", "#5C7835", "#FF80C0", "#006B1F",
+            "#FF3399", "#CCE5FF", "#FF5555", "#00CCE5",
+            "#FF0000", "#0080D0", "#800000", "#0000FF",
+            "#FF9955", "#101B7A", "#E59000", "#CD78EA",
+            "#9A643E", "#800080"
+        ];
+
+        let selectedColor = colorCodes[0];
+        let isMouseDown = false;
+
+        const paletteEl = document.getElementById('palette');
+        const canvasEl = document.getElementById('pixel-canvas');
+        const qualitySelect = document.getElementById('quality');
+        const clearBtn = document.getElementById('clear-btn');
+        const exportBtn = document.getElementById('export-btn');
+
+        // Paleti Oluştur
+        colorCodes.forEach((color, index) => {
+            const box = document.createElement('div');
+            box.classList.add('color-box');
+            if (index === 0) box.classList.add('selected');
+            box.style.backgroundColor = color;
+            box.setAttribute('draggable', true);
+
+            // Tıklayarak renk seçme
+            box.addEventListener('click', () => {
+                document.querySelectorAll('.color-box').forEach(b => b.classList.remove('selected'));
+                box.classList.add('selected');
+                selectedColor = color;
+            });
+
+            // Sürükle-Bırak başlatma
+            box.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', color);
+            });
+
+            paletteEl.appendChild(box);
+        });
+
+        // Tuvali (Grid) Oluştur
+        function createGrid(size) {
+            canvasEl.innerHTML = '';
+            const canvasPixelSize = 512; // Sabit tuval boyutu (px)
+            const cellSize = canvasPixelSize / size;
+
+            canvasEl.style.gridTemplateColumns = `repeat(${size}, ${cellSize}px)`;
+            canvasEl.style.gridTemplateRows = `repeat(${size}, ${cellSize}px)`;
+
+            for (let i = 0; i < size * size; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('pixel');
+                cell.style.backgroundColor = '#FFFFFF';
+
+                // Tıklayarak Boyama
+                cell.addEventListener('mousedown', () => {
+                    cell.style.backgroundColor = selectedColor;
+                });
+
+                // Sürükleyerek Çizme
+                cell.addEventListener('mouseenter', () => {
+                    if (isMouseDown) {
+                        cell.style.backgroundColor = selectedColor;
+                    }
+                });
+
+                // Sürükle-Bırak (Drag & Drop) ile Boyama
+                cell.addEventListener('dragover', (e) => e.preventDefault());
+                cell.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const draggedColor = e.dataTransfer.getData('text/plain');
+                    if (draggedColor) {
+                        cell.style.backgroundColor = draggedColor;
+                    }
+                });
+
+                canvasEl.appendChild(cell);
+            }
+        }
+
+        // Mouse durum takibi (Basılı tutarak çizmek için)
+        document.body.addEventListener('mousedown', () => isMouseDown = true);
+        document.body.addEventListener('mouseup', () => isMouseDown = false);
+
+        // Kalite Değişimi
+        qualitySelect.addEventListener('change', (e) => {
+            if (confirm('Kaliteyi değiştirmek mevcut çizimi temizler. Devam edilsin mi?')) {
+                createGrid(parseInt(e.target.value));
+            }
+        });
+
+        // Temizleme
+        clearBtn.addEventListener('click', () => {
+            const pixels = document.querySelectorAll('.pixel');
+            pixels.forEach(p => p.style.backgroundColor = '#FFFFFF');
+        });
+
+        // PNG olarak indirme
+        exportBtn.addEventListener('click', () => {
+            const size = parseInt(qualitySelect.value);
+            const exportCanvas = document.createElement('canvas');
+            const scale = 16; // İndirilen görselin net görünmesi için ölçek
+            exportCanvas.width = size * scale;
+            exportCanvas.height = size * scale;
+            const ctx = exportCanvas.getContext('2d');
+
+            const pixels = document.querySelectorAll('.pixel');
+            pixels.forEach((pixel, index) => {
+                const x = (index % size) * scale;
+                const y = Math.floor(index / size) * scale;
+                ctx.fillStyle = pixel.style.backgroundColor || '#FFFFFF';
+                ctx.fillRect(x, y, scale, scale);
+            });
+
+            const link = document.createElement('a');
+            link.download = 'github-pixel-art.png';
+            link.href = exportCanvas.toDataURL();
+            link.click();
+        });
+
+        // Başlangıç oluşturma
+        createGrid(parseInt(qualitySelect.value));
+    </script>
+</body>
+</html>
