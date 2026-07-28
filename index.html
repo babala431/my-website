@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Piksel Art Dönüştürücü</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: #1e293b;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+            border: 1px solid #334155;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #38bdf8;
+        }
+
+        .upload-area {
+            border: 2px dashed #38bdf8;
+            padding: 30px;
+            border-radius: 12px;
+            cursor: pointer;
+            background: #0f172a;
+            transition: 0.3s;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            background: #1e293b;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            text-align: left;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+
+        input[type="range"], select {
+            width: 100%;
+            padding: 8px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            border-radius: 6px;
+            outline: none;
+        }
+
+        .canvas-container {
+            margin-top: 15px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 10px;
+            min-height: 200px;
+        }
+
+        canvas {
+            max-width: 100%;
+            height: auto;
+            image-rendering: pixelated;
+            border-radius: 4px;
+        }
+
+        .btn-download {
+            margin-top: 20px;
+            width: 100%;
+            padding: 12px;
+            background-color: #38bdf8;
+            color: #0f172a;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.3s;
+            display: none;
+        }
+
+        .btn-download:hover {
+            background-color: #7dd3fc;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>👾 Piksel Art Dönüştürücü</h1>
+
+    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <p>📷 Fotoğraf veya Dosya Seçmek İçin Tıklayın</p>
+        <input type="file" id="fileInput" accept="image/*">
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="pixelSize">Piksel Boyutu: <span id="pixelVal">8</span>px</label>
+            <input type="range" id="pixelSize" min="2" max="64" value="8">
+        </div>
+
+        <div class="control-group">
+            <label for="paletteSelect">Renk Efekti / Palet:</label>
+            <select id="paletteSelect">
+                <option value="none">Orijinal Renkler</option>
+                <option value="gameboy">GameBoy (Retro Yeşil)</option>
+                <option value="nes">8-Bit Klasik</option>
+                <option value="cyberpunk">Cyberpunk Neon</option>
+                <option value="bw">Siyah Beyaz / Gameboy Pocket</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="pixelCanvas"></canvas>
+    </div>
+
+    <button id="downloadBtn" class="btn-download">💾 Piksel Resmi İndir</button>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const pixelSizeInput = document.getElementById('pixelSize');
+    const pixelVal = document.getElementById('pixelVal');
+    const paletteSelect = document.getElementById('paletteSelect');
+    const canvas = document.getElementById('pixelCanvas');
+    const ctx = canvas.getContext('2d');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let loadedImage = null;
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    loadedImage = img;
+                    processPixelArt();
+                    downloadBtn.style.display = 'block';
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    pixelSizeInput.addEventListener('input', () => {
+        pixelVal.textContent = pixelSizeInput.value;
+        if (loadedImage) processPixelArt();
+    });
+
+    paletteSelect.addEventListener('change', () => {
+        if (loadedImage) processPixelArt();
+    });
+
+    function processPixelArt() {
+        if (!loadedImage) return;
+
+        const pixelSize = parseInt(pixelSizeInput.value);
+        const w = loadedImage.width;
+        const h = loadedImage.height;
+
+        canvas.width = w;
+        canvas.height = h;
+
+        // Geçici küçük canvas (Pikselleştirme için)
+        const offscreenCanvas = document.createElement('canvas');
+        const offCtx = offscreenCanvas.getContext('2d');
+        
+        const smallW = Math.max(1, Math.floor(w / pixelSize));
+        const smallH = Math.max(1, Math.floor(h / pixelSize));
+
+        offscreenCanvas.width = smallW;
+        offscreenCanvas.height = smallH;
+
+        // Resmi küçült
+        offCtx.drawImage(loadedImage, 0, 0, smallW, smallH);
+
+        // Renk paleti uygula
+        if (paletteSelect.value !== 'none') {
+            applyPalette(offCtx, smallW, smallH, paletteSelect.value);
+        }
+
+        // Keskin şekilde tekrar büyüt
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(offscreenCanvas, 0, 0, smallW, smallH, 0, 0, w, h);
+    }
+
+    function applyPalette(context, w, h, paletteType) {
+        const imgData = context.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        const palettes = {
+            gameboy: [[15, 56, 15], [48, 98, 48], [139, 172, 15], [155, 188, 15]],
+            nes: [[0, 0, 0], [255, 255, 255], [252, 152, 56], [0, 168, 0], [216, 0, 204], [0, 120, 248], [248, 56, 0]],
+            cyberpunk: [[255, 0, 122], [0, 255, 240], [255, 230, 0], [10, 10, 35]],
+            bw: [[0, 0, 0], [85, 85, 85], [170, 170, 170], [255, 255, 255]]
+        };
+
+        const targetPalette = palettes[paletteType];
+
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+
+            // En yakın rengi bul
+            let closest = targetPalette[0];
+            let minDistance = Infinity;
+
+            for (const color of targetPalette) {
+                const dist = Math.hypot(r - color[0], g - color[1], b - color[2]);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closest = color;
+                }
+            }
+
+            data[i] = closest[0];
+            data[i + 1] = closest[1];
+            data[i + 2] = closest[2];
+        }
+
+        context.putImageData(imgData, 0, 0);
+    }
+
+    downloadBtn.addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = 'pixel-art.png';
+        link.href = canvas.toDataURL();
+        link.click();
+    });
+</script>
+
+</body>
+</html>
