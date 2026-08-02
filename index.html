@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Art Converter</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
+        h1 { margin-bottom: 20px; color: #58a6ff; font-size: 24px; }
+        
+        .container { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px; width: 100%; max-width: 800px; display: flex; flex-direction: column; gap: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        
+        .drop-zone { border: 2px dashed #484f58; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; transition: 0.2s; background: #0d1117; }
+        .drop-zone:hover { border-color: #58a6ff; background: #161b22; }
+        .drop-zone p { color: #8b949e; font-size: 14px; }
+        #file-input { display: none; }
+
+        .controls { display: flex; flex-direction: column; gap: 10px; background: #0d1117; padding: 15px; border-radius: 8px; border: 1px solid #21262d; }
+        .control-group { display: flex; justify-content: space-between; align-items: center; }
+        label { font-size: 14px; font-weight: 600; color: #c9d1d9; }
+        input[type="range"] { width: 60%; accent-color: #238636; cursor: pointer; }
+        .val-badge { background: #21262d; padding: 2px 8px; border-radius: 4px; font-size: 12px; color: #58a6ff; font-weight: bold; }
+
+        .preview-area { display: flex; justify-content: center; align-items: center; background: #010409; border-radius: 8px; padding: 10px; min-height: 250px; overflow: hidden; }
+        canvas { max-width: 100%; height: auto; image-rendering: pixelated; border-radius: 4px; display: none; }
+
+        .btn-group { display: flex; gap: 10px; justify-content: center; }
+        button { background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #2ea043; }
+        button:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+
+        .socials { display: flex; justify-content: center; gap: 15px; margin-top: 10px; }
+        .socials a { color: #8b949e; text-decoration: none; font-size: 13px; transition: 0.2s; }
+        .socials a:hover { color: #58a6ff; }
+    </style>
+</head>
+<body>
+
+    <h1>🎨 Pixel Art Dönüştürücü</h1>
+
+    <div class="container">
+        <div class="drop-zone" id="drop-zone">
+            <p>Fotoğrafı buraya sürükleyin veya <strong>dosya seçmek için tıklayın</strong></p>
+            <input type="file" id="file-input" accept="image/*">
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="pixel-size">Piksel Detayı / Çözünürlük:</label>
+                <!-- Maksimum değer 1024 yapıldı -->
+                <input type="range" id="pixel-size" min="16" max="1024" value="128" step="16">
+                <span class="val-badge" id="size-val">128px</span>
+            </div>
+        </div>
+
+        <div class="preview-area">
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div class="btn-group">
+            <button id="download-btn" disabled>İndir (PNG)</button>
+        </div>
+
+        <div class="socials">
+            <a href="https://instagram.com" target="_blank">Instagram</a>
+            <a href="https://discord.com" target="_blank">Discord</a>
+        </div>
+    </div>
+
+    <script>
+        const PALETTE = [
+            "#FFFFFF", "#593D29", "#E3E4E5", "#F7E1B5", "#CCCCCC", "#FFFF80",
+            "#7F7F7F", "#E5D900", "#4C4C4C", "#8CE63A", "#000000", "#00CD00",
+            "#FFA0A0", "#5C7835", "#FF80C0", "#006B1F", "#FF3399", "#CCE5FF",
+            "#FF5555", "#00CCE5", "#FF0000", "#0080D0", "#800000", "#0000FF",
+            "#FF9955", "#101B7A", "#E59000", "#CD78EA", "#9A643E", "#800080"
+        ].map(hex => {
+            const num = parseInt(hex.slice(1), 16);
+            return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+        });
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const sizeInput = document.getElementById('pixel-size');
+        const sizeVal = document.getElementById('size-val');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const downloadBtn = document.getElementById('download-btn');
+
+        let loadedImg = null;
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleImage(e.target.files[0]));
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#58a6ff'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#484f58'; });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#484f58';
+            if (e.dataTransfer.files.length) handleImage(e.dataTransfer.files[0]);
+        });
+
+        sizeInput.addEventListener('input', (e) => {
+            sizeVal.textContent = `${e.target.value}px`;
+            if (loadedImg) renderPixelArt();
+        });
+
+        function handleImage(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                loadedImg = new Image();
+                loadedImg.onload = () => {
+                    canvas.style.display = 'block';
+                    downloadBtn.disabled = false;
+                    renderPixelArt();
+                };
+                loadedImg.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function getClosestColor(r, g, b) {
+            let minDistance = Infinity;
+            let closest = PALETTE[0];
+            for (let i = 0; i < PALETTE.length; i++) {
+                const p = PALETTE[i];
+                const dist = Math.pow(r - p[0], 2) + Math.pow(g - p[1], 2) + Math.pow(b - p[2], 2);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closest = p;
+                }
+            }
+            return closest;
+        }
+
+        function renderPixelArt() {
+            const targetSize = parseInt(sizeInput.value);
+            const aspectRatio = loadedImg.height / loadedImg.width;
+            
+            let w = targetSize;
+            let h = Math.round(targetSize * aspectRatio);
+
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+
+            tempCtx.drawImage(loadedImg, 0, 0, w, h);
+            const imgData = tempCtx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] < 128) continue;
+                const [r, g, b] = getClosestColor(data[i], data[i + 1], data[i + 2]);
+                data[i] = r;
+                data[i + 1] = g;
+                data[i + 2] = b;
+            }
+
+            tempCtx.putImageData(imgData, 0, 0);
+
+            canvas.width = loadedImg.width;
+            canvas.height = loadedImg.height;
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(tempCanvas, 0, 0, w, h, 0, 0, canvas.width, canvas.height);
+        }
+
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'pixel-art.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+    </script>
+</body>
+</html>
