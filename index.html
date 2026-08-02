@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Piksel Sanat Dönüştürücü</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #121212; color: #ffffff; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+    .container { background-color: #1e1e1e; padding: 25px; border-radius: 12px; max-width: 700px; width: 100%; text-align: center; }
+    .drop-zone { border: 2px dashed #444; border-radius: 8px; padding: 25px; cursor: pointer; margin-bottom: 20px; }
+    .drop-zone:hover { border-color: #007bff; background-color: #252525; }
+    .controls { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; align-items: center; margin-bottom: 20px; }
+    .control-group { display: flex; flex-direction: column; gap: 5px; text-align: left; }
+    label { font-size: 0.85rem; color: #aaa; font-weight: bold; }
+    select, input, button { background-color: #2a2a2a; color: #fff; border: 1px solid #444; padding: 8px 12px; border-radius: 6px; font-size: 0.95rem; }
+    .btn-download { background-color: #28a745; border: none; font-weight: bold; cursor: pointer; }
+    .btn-download:hover { background-color: #218838; }
+    .btn-download:disabled { background-color: #444; cursor: not-allowed; opacity: 0.5; }
+    .preview-container { background: #000; border-radius: 8px; padding: 10px; display: flex; justify-content: center; align-items: center; min-height: 300px; overflow: auto; }
+    canvas { image-rendering: pixelated; max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>Piksel Sanat Dönüştürücü</h2>
+
+    <div class="drop-zone" id="dropZone">
+      <p>Fotoğrafı buraya sürükleyin veya seçin</p>
+      <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    </div>
+
+    <div class="controls">
+      <!-- Çözünürlük Seçimi -->
+      <div class="control-group">
+        <label for="sizeSelect">Piksel Çözünürlüğü</label>
+        <select id="sizeSelect">
+          <option value="16">16 x 16</option>
+          <option value="32">32 x 32</option>
+          <option value="48">48 x 48</option>
+          <option value="64" selected>64 x 64</option>
+          <option value="96">96 x 96</option>
+          <option value="128">128 x 128</option>
+          <option value="256">256 x 256</option>
+          <option value="512">512 x 512</option>
+        </select>
+      </div>
+
+      <!-- Konum / Pozisyon Ayarları (X, Y Kaydırma) -->
+      <div class="control-group">
+        <label for="offsetX">Konum X (Yatay)</label>
+        <input type="range" id="offsetX" min="-100" max="100" value="0">
+      </div>
+
+      <div class="control-group">
+        <label for="offsetY">Konum Y (Dikey)</label>
+        <input type="range" id="offsetY" min="-100" max="100" value="0">
+      </div>
+
+      <div class="control-group" style="align-self: flex-end;">
+        <button id="downloadBtn" class="btn-download" disabled>İndir</button>
+      </div>
+    </div>
+
+    <div class="preview-container">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // RENK PALETİ KODLARI (İstediğin renk paletini buraya ekleyebilirsin)
+    const PALETTE = [
+      [0, 0, 0],       // Siyah
+      [255, 255, 255], // Beyaz
+      [255, 0, 0],     // Kırmızı
+      [0, 255, 0],     // Yeşil
+      [0, 0, 255],     // Mavi
+      [255, 255, 0],   // Sarı
+      [255, 128, 0],   // Turuncu
+      [128, 0, 128],   // Mor
+      [128, 128, 128]  // Gri
+    ];
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const sizeSelect = document.getElementById('sizeSelect');
+    const offsetX = document.getElementById('offsetX');
+    const offsetY = document.getElementById('offsetY');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let loadedImage = null;
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => e.preventDefault());
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    [sizeSelect, offsetX, offsetY].forEach(el => el.addEventListener('input', processImage));
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          loadedImage = img;
+          processImage();
+          downloadBtn.disabled = false;
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // En yakın palet rengini bulma algoritması (Euclidean distance)
+    function getNearestColor(r, g, b) {
+      let minDistance = Infinity;
+      let nearest = PALETTE[0];
+
+      for (let i = 0; i < PALETTE.length; i++) {
+        const pr = PALETTE[i][0];
+        const pg = PALETTE[i][1];
+        const pb = PALETTE[i][2];
+
+        const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearest = PALETTE[i];
+        }
+      }
+      return nearest;
+    }
+
+    function processImage() {
+      if (!loadedImage) return;
+
+      const targetSize = parseInt(sizeSelect.value, 10);
+      canvas.width = targetSize;
+      canvas.height = targetSize;
+
+      // Konum ayarlamalarını hesapla
+      const shiftX = (parseInt(offsetX.value, 10) / 100) * targetSize;
+      const shiftY = (parseInt(offsetY.value, 10) / 100) * targetSize;
+
+      // Görseli canvas'a çiz (Yer ayarlamaları ile)
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, targetSize, targetSize);
+      ctx.drawImage(loadedImage, shiftX, shiftY, targetSize, targetSize);
+
+      // Piksel Verilerini Al ve Renk Paletine Eşle
+      const imgData = ctx.getImageData(0, 0, targetSize, targetSize);
+      const data = imgData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        // Şeffaf pikselleri atla
+        if (data[i + 3] < 128) continue;
+
+        const [r, g, b] = getNearestColor(data[i], data[i + 1], data[i + 2]);
+        data[i] = r;
+        data[i + 1] = g;
+        data[i + 2] = b;
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // Yüksek kalitede indirme işlemi
+    downloadBtn.addEventListener('click', () => {
+      if (!loadedImage) return;
+
+      const exportCanvas = document.createElement('canvas');
+      const exportCtx = exportCanvas.getContext('2d');
+      const scale = Math.max(1, Math.floor(1024 / canvas.width));
+
+      exportCanvas.width = canvas.width * scale;
+      exportCanvas.height = canvas.height * scale;
+
+      exportCtx.imageSmoothingEnabled = false;
+      exportCtx.drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+
+      const link = document.createElement('a');
+      link.download = `pixel_art_${sizeSelect.value}x${sizeSelect.value}.png`;
+      link.href = exportCanvas.toDataURL('image/png');
+      link.click();
+    });
+  </script>
+</body>
+</html>
