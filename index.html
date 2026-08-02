@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Piksel Sanatı Dönüştürücü</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: #121212;
+      color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      background-color: #1e1e1e;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-size: 1.8rem;
+    }
+
+    .drop-zone {
+      border: 2px dashed #444;
+      border-radius: 8px;
+      padding: 30px;
+      cursor: pointer;
+      transition: background 0.3s, border-color 0.3s;
+      margin-bottom: 20px;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #007bff;
+      background-color: #2a2a2a;
+    }
+
+    .controls {
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      align-items: center;
+    }
+
+    label {
+      font-weight: 600;
+    }
+
+    select {
+      background-color: #2a2a2a;
+      color: #fff;
+      border: 1px solid #444;
+      padding: 10px 15px;
+      border-radius: 6px;
+      font-size: 1rem;
+      outline: none;
+      cursor: pointer;
+      width: 100%;
+      max-width: 220px;
+    }
+
+    .btn-download {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      width: 100%;
+      max-width: 220px;
+    }
+
+    .btn-download:hover {
+      background-color: #218838;
+    }
+
+    .btn-download:disabled {
+      background-color: #444;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .preview-area {
+      margin-top: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 200px;
+      overflow: auto;
+    }
+
+    canvas {
+      image-rendering: pixelated; /* Piksellerin net kalmasını sağlar */
+      max-width: 100%;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Piksel Sanatı Dönüştürücü</h1>
+
+    <div class="drop-zone" id="dropZone">
+      <p>Fotoğrafı buraya sürükleyin veya seçmek için tıklayın</p>
+      <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    </div>
+
+    <div class="controls">
+      <div>
+        <label for="sizeSelect">Piksel Boyutu Seçin: </label>
+        <select id="sizeSelect">
+          <option value="16">16 x 16</option>
+          <option value="32">32 x 32</option>
+          <option value="48">48 x 48</option>
+          <option value="64" selected>64 x 64</option>
+          <option value="96">96 x 96</option>
+          <option value="128">128 x 128</option>
+          <option value="256">256 x 256</option>
+          <option value="512">512 x 512</option>
+        </select>
+      </div>
+
+      <button id="downloadBtn" class="btn-download" disabled>Resmi İndir</button>
+    </div>
+
+    <div class="preview-area">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const sizeSelect = document.getElementById('sizeSelect');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let loadedImage = null;
+
+    // Sürükle - Bırak Olayları
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) {
+        handleFile(e.target.files[0]);
+      }
+    });
+
+    sizeSelect.addEventListener('change', processImage);
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          loadedImage = img;
+          processImage();
+          downloadBtn.disabled = false; // Fotoğraf yüklenince butonu aktif et
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function processImage() {
+      if (!loadedImage) return;
+
+      const targetSize = parseInt(sizeSelect.value, 10);
+
+      // Tuval boyutunu seçilen boyuta ayarla
+      canvas.width = targetSize;
+      canvas.height = targetSize;
+
+      // Piksellerin yumuşatılmasını engelle
+      ctx.imageSmoothingEnabled = false;
+
+      // Resmi hedef piksel boyutunda çiz
+      ctx.drawImage(loadedImage, 0, 0, targetSize, targetSize);
+    }
+
+    // İndirme Butonu İşlevi
+    downloadBtn.addEventListener('click', () => {
+      if (!loadedImage) return;
+
+      const link = document.createElement('a');
+      const targetSize = sizeSelect.value;
+      link.download = `pixel_art_${targetSize}x${targetSize}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  </script>
+</body>
+</html>
