@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Piksel Sanat Dönüştürücü</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: #080f0a;
+      color: #20f070;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      background-color: #101c13;
+      border: 1px solid #1ba84c;
+      padding: 25px;
+      border-radius: 12px;
+      max-width: 750px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 0 20px rgba(32, 240, 112, 0.15);
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      color: #20f070;
+      text-shadow: 0 0 8px rgba(32, 240, 112, 0.4);
+    }
+
+    .drop-zone {
+      border: 2px dashed #1ba84c;
+      border-radius: 8px;
+      padding: 30px;
+      cursor: pointer;
+      background-color: #0b140d;
+      color: #a0f7c0;
+      transition: background 0.3s, border-color 0.3s;
+      margin-bottom: 20px;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #20f070;
+      background-color: #14261a;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+      align-items: flex-end;
+      margin-bottom: 20px;
+      background-color: #0b140d;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #144021;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      text-align: left;
+    }
+
+    label {
+      font-size: 0.8rem;
+      color: #82e0a1;
+      font-weight: bold;
+    }
+
+    select, input[type="range"] {
+      background-color: #14261a;
+      color: #20f070;
+      border: 1px solid #1ba84c;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    input[type="range"] {
+      accent-color: #20f070;
+      cursor: pointer;
+    }
+
+    .btn-download {
+      background-color: #1ba84c;
+      color: #050a06;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-download:hover {
+      background-color: #20f070;
+      box-shadow: 0 0 10px rgba(32, 240, 112, 0.5);
+    }
+
+    .btn-download:disabled {
+      background-color: #14331e;
+      color: #4a7556;
+      cursor: not-allowed;
+      box-shadow: none;
+      opacity: 0.6;
+    }
+
+    .preview-container {
+      background: #040805;
+      border: 1px solid #144021;
+      border-radius: 8px;
+      padding: 15px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 300px;
+      overflow: auto;
+    }
+
+    canvas {
+      image-rendering: pixelated;
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Instagram Butonu Tasarımı */
+    .insta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 1rem;
+      padding: 12px 24px;
+      border-radius: 30px;
+      box-shadow: 0 4px 15px rgba(220, 39, 67, 0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .insta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(220, 39, 67, 0.6);
+    }
+
+    .insta-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: #ffffff;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>Piksel Sanat Dönüştürücü</h2>
+
+    <div class="drop-zone" id="dropZone">
+      <p>Fotoğrafları buraya sürükleyin (.png, .jpg vb.) veya tıklayıp seçin</p>
+      <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    </div>
+
+    <div class="controls">
+      <!-- Çözünürlük Seçimi -->
+      <div class="control-group">
+        <label for="sizeSelect">Çözünürlük (Piksellik)</label>
+        <select id="sizeSelect">
+          <option value="16">16 x 16</option>
+          <option value="32">32 x 32</option>
+          <option value="48">48 x 48</option>
+          <option value="64" selected>64 x 64</option>
+          <option value="96">96 x 96</option>
+          <option value="128">128 x 128</option>
+          <option value="256">256 x 256</option>
+          <option value="512">512 x 512</option>
+        </select>
+      </div>
+
+      <!-- Yakınlaştırma (Zoom) -->
+      <div class="control-group">
+        <label for="zoomRange">Yakınlaştır (Zoom)</label>
+        <input type="range" id="zoomRange" min="50" max="300" value="100">
+      </div>
+
+      <!-- Konum X / Y -->
+      <div class="control-group">
+        <label for="offsetX">Konum X (Yatay)</label>
+        <input type="range" id="offsetX" min="-100" max="100" value="0">
+      </div>
+
+      <div class="control-group">
+        <label for="offsetY">Konum Y (Dikey)</label>
+        <input type="range" id="offsetY" min="-100" max="100" value="0">
+      </div>
+
+      <button id="downloadBtn" class="btn-download" disabled>İndir</button>
+    </div>
+
+    <div class="preview-container">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- En Aşağıdaki Instagram Butonu -->
+  <a href="https://www.instagram.com/enverpasababaq9?igsh=ZWFlNzZnbTNxYXhp" target="_blank" rel="noopener noreferrer" class="insta-btn">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+      <path d="M224.1 141.1c-43.6 0-79 35.4-79 79 0 43.6 35.4 79 79 79s79-35.4 79-79c0-43.6-35.4-79-79-79zm0 132c-29.3 0-53-23.7-53-53s23.7-53 53-53 53 23.7 53 53-23.7 53-53 53zm120.3-131.3c-10.8 0-19.5 8.7-19.5 19.5s8.7 19.5 19.5 19.5 19.5-8.7 19.5-19.5-8.7-19.5-19.5-19.5zm70.6 22.8c-1.6-33.9-9.4-64-34.3-88.9s-54.9-32.7-88.9-34.3c-35-2-139.9-2-174.9 0-33.9 1.6-64 9.4-88.9 34.3s-32.7 54.9-34.3 88.9c-2 35-2 139.9 0 174.9 1.6 33.9 9.4 64 34.3 88.9s54.9 32.7 88.9 34.3c35 2 139.9 2 174.9 0 33.9-1.6 64-9.4 88.9-34.3s32.7-54.9 34.3-88.9c2-35 2-139.9 0-174.9zm-41.1 233.2c-7.4 18.6-21.7 32.9-40.3 40.3-29.9 11.9-101 9.1-135.6 9.1s-105.7 2.8-135.6-9.1c-18.6-7.4-32.9-21.7-40.3-40.3-11.9-29.9-9.1-101-9.1-135.6s-2.8-105.7 9.1-135.6c7.4-18.6 21.7-32.9 40.3-40.3 29.9-11.9 101-9.1 135.6-9.1s105.7-2.8 135.6 9.1c18.6 7.4 32.9 21.7 40.3 40.3 11.9 29.9 9.1 101 9.1 135.6s2.8 105.7-9.1 135.6z"/>
+    </svg>
+    insta
+  </a>
+
+  <script>
+    // Tam 30 Adet Özel Renk Paleti
+    const PALETTE_HEX = [
+      "#FFFFFF", "#593D29",
+      "#E3E4E5", "#F7E1B5",
+      "#CCCCCC", "#FFFF80",
+      "#7F7F7F", "#E5D900",
+      "#4C4C4C", "#8CE63A",
+      "#000000", "#00CD00",
+      "#FFA0A0", "#5C7835",
+      "#FF80C0", "#006B1F",
+      "#FF3399", "#CCE5FF",
+      "#FF5555", "#00CCE5",
+      "#FF0000", "#0080D0",
+      "#800000", "#0000FF",
+      "#FF9955", "#101B7A",
+      "#E59000", "#CD78EA",
+      "#9A643E", "#800080"
+    ];
+
+    const PALETTE_RGB = PALETTE_HEX.map(hex => {
+      const clean = hex.replace("#", "");
+      return {
+        r: parseInt(clean.substring(0, 2), 16),
+        g: parseInt(clean.substring(2, 4), 16),
+        b: parseInt(clean.substring(4, 6), 16)
+      };
+    });
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const sizeSelect = document.getElementById('sizeSelect');
+    const zoomRange = document.getElementById('zoomRange');
+    const offsetX = document.getElementById('offsetX');
+    const offsetY = document.getElementById('offsetY');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let loadedImage = null;
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    [sizeSelect, zoomRange, offsetX, offsetY].forEach(el => el.addEventListener('input', processImage));
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          loadedImage = img;
+          processImage();
+          downloadBtn.disabled = false;
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function getNearestColor(r, g, b) {
+      let minDistance = Infinity;
+      let nearest = PALETTE_RGB[0];
+
+      for (let i = 0; i < PALETTE_RGB.length; i++) {
+        const c = PALETTE_RGB[i];
+        const dist = (r - c.r) ** 2 + (g - c.g) ** 2 + (b - c.b) ** 2;
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearest = c;
+        }
+      }
+      return nearest;
+    }
+
+    function processImage() {
+      if (!loadedImage) return;
+
+      const targetSize = parseInt(sizeSelect.value, 10);
+      const zoom = parseInt(zoomRange.value, 10) / 100;
+
+      canvas.width = targetSize;
+      canvas.height = targetSize;
+
+      const scaledWidth = targetSize * zoom;
+      const scaledHeight = targetSize * zoom;
+
+      const baseShiftX = (targetSize - scaledWidth) / 2;
+      const baseShiftY = (targetSize - scaledHeight) / 2;
+
+      const shiftX = baseShiftX + (parseInt(offsetX.value, 10) / 100) * targetSize;
+      const shiftY = baseShiftY + (parseInt(offsetY.value, 10) / 100) * targetSize;
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, targetSize, targetSize);
+      ctx.drawImage(loadedImage, shiftX, shiftY, scaledWidth, scaledHeight);
+
+      const imgData = ctx.getImageData(0, 0, targetSize, targetSize);
+      const data = imgData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 128) continue;
+
+        const nearest = getNearestColor(data[i], data[i + 1], data[i + 2]);
+        data[i] = nearest.r;
+        data[i + 1] = nearest.g;
+        data[i + 2] = nearest.b;
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    downloadBtn.addEventListener('click', () => {
+      if (!loadedImage) return;
+
+      const exportCanvas = document.createElement('canvas');
+      const exportCtx = exportCanvas.getContext('2d');
+      const scale = Math.max(1, Math.floor(1024 / canvas.width));
+
+      exportCanvas.width = canvas.width * scale;
+      exportCanvas.height = canvas.height * scale;
+
+      exportCtx.imageSmoothingEnabled = false;
+      exportCtx.drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+
+      const link = document.createElement('a');
+      link.download = `pixel_art_${sizeSelect.value}x${sizeSelect.value}.png`;
+      link.href = exportCanvas.toDataURL('image/png');
+      link.click();
+    });
+  </script>
+</body>
+</html>
